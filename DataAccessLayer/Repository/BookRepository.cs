@@ -1,18 +1,19 @@
-﻿using Library_Management_System.Data;
-using Library_Management_System.DataAccessLayer.Interfaces;
+﻿using Dapper;
+using System.Data;
 using Library_Management_System.Models;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Library_Management_System.DataAccessLayer.Interfaces;
+
 namespace Library_Management_System.DataAccessLayer.Repository
 {
     public class BookRepository : IBookRepository
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDbConnection _db;
 
-        public BookRepository(ApplicationDbContext context)
+        public BookRepository(IDbConnection db)
         {
-            _context = context;
+            _db = db;
         }
+
 
         public async Task<BookResponse> GetAllRecord()
         {
@@ -23,12 +24,12 @@ namespace Library_Management_System.DataAccessLayer.Repository
             try
             {
 
-                response.Data = new List<Book>();
-                response.Data = await _context.Books.ToListAsync();
-                if (response.Data.Count == 0)
-                {
-                    response.Message = "No record Found";
-                }
+                var query = "SELECT * FROM Books";
+                var result = (await _db.QueryAsync<Book>(query)).ToList();
+
+                response.IsSuccess = true;
+                response.Message = result.Count == 0 ? "No record Found" : "Data Fetched Successfully";
+                response.Data = result;
             }
             catch (Exception ex)
             {
@@ -50,16 +51,12 @@ namespace Library_Management_System.DataAccessLayer.Repository
 
             try
             {
-                var book = await _context.Books.FirstOrDefaultAsync(x => x.Id == Id);
-                if (book != null)
-                {
-                    response.SingleData= book;
-                }
-                else
-                {
-                    response.IsSuccess = false;
-                    response.Message = "No record found";
-                }
+                var query = "SELECT * FROM Books WHERE Id = @Id";
+                var book = await _db.QueryFirstOrDefaultAsync<Book>(query, new { Id = Id });
+
+                response.IsSuccess = book != null;
+                response.Message = book != null ? "Data fetched successfully" : "No record found";
+                response.SingleData = book;
             }
             catch (Exception ex)
             {
@@ -73,12 +70,17 @@ namespace Library_Management_System.DataAccessLayer.Repository
         public async Task<BookResponse> InsertRecord(Book request)
         {
             BookResponse response = new BookResponse();
-            response.IsSuccess = true;
-            response.Message = "Data Successfully inserted";
             try
             {
-                await _context.Books.AddAsync(request);
-                await _context.SaveChangesAsync();
+                var query = @"INSERT INTO Books (Title, Author, ISBN, PublishedDate)
+                              VALUES (@Title, @Author, @ISBN, @PublishedDate);
+                              SELECT LAST_INSERT_ID();";
+
+                var id = await _db.ExecuteScalarAsync<int>(query, request);
+                request.Id = id;
+
+                response.IsSuccess = true;
+                response.Message = "Data successfully inserted";
                 response.Data = new List<Book> { request };
             }
             catch (Exception ex)
@@ -94,27 +96,28 @@ namespace Library_Management_System.DataAccessLayer.Repository
         public async Task<BookResponse> UpdateRecordById(Book request)
         {
             BookResponse response = new BookResponse();
-            response.IsSuccess = true;
-            response.Message = "Updated record successfully by ID";
-
             try
             {
-                var existingBook = await _context.Books.FindAsync(request.Id);
-                if (existingBook == null)
+                var query = @"UPDATE Books SET 
+                              Title = @Title, 
+                              Author = @Author, 
+                              ISBN = @ISBN, 
+                              PublishedDate = @PublishedDate
+                              WHERE Id = @Id";
+
+                var rowsAffected = await _db.ExecuteAsync(query, request);
+
+                if (rowsAffected == 0)
                 {
                     response.IsSuccess = false;
                     response.Message = "Record with given ID not found";
-                    return response;
                 }
-
-                // Update properties
-                existingBook.Title = request.Title;
-                existingBook.Author = request.Author;
-                existingBook.ISBN = request.ISBN;
-                existingBook.PublishedDate = request.PublishedDate;
-
-                await _context.SaveChangesAsync();
-                response.Data = new List<Book> { existingBook };
+                else
+                {
+                    response.IsSuccess = true;
+                    response.Message = "Updated record successfully";
+                    response.Data = new List<Book> { request };
+                }
             }
             catch (Exception ex)
             {
@@ -127,24 +130,23 @@ namespace Library_Management_System.DataAccessLayer.Repository
 
         public async Task<BookResponse> DeleteRecordById(int id)
         {
-            BookResponse response = new BookResponse
-            {
-                IsSuccess = true,
-                Message = "Record deleted successfully"
-            };
-
+            BookResponse response = new BookResponse();
+            
             try
             {
-                var book = await _context.Books.FindAsync(id);
-                if (book == null)
+               var query = "DELETE FROM Books WHERE Id = @Id";
+                var rowsAffected = await _db.ExecuteAsync(query, new { Id = id });
+
+                if (rowsAffected == 0)
                 {
                     response.IsSuccess = false;
                     response.Message = "Invalid ID, no record found to delete";
-                    return response;
                 }
-
-                _context.Books.Remove(book);
-                await _context.SaveChangesAsync();
+                else
+                {
+                    response.IsSuccess = true;
+                    response.Message = "Record deleted successfully";
+                }
             }
             catch (Exception ex)
             {

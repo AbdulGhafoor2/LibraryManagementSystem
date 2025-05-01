@@ -1,18 +1,29 @@
-using Library_Management_System.Data;
-using Microsoft.EntityFrameworkCore;
+
 
 using Library_Management_System.DataAccessLayer.Interfaces;
 using Library_Management_System.DataAccessLayer.Repository;
+using Library_Management_System.Helpers;
+using MySql.Data.MySqlClient;
+using System.Data;
+using System.Data.SqlClient;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseMySql(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        ServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))
-    ));
+
 
 
 // Add services to the container.
+
+builder.Services.AddScoped<IDbConnection>(db =>
+    new MySqlConnection(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddSingleton<DbConnectionFactory>();
+
+// For per request
+//builder.Services.AddScoped<IDbConnection>(provider =>
+//{
+//    var configuration = provider.GetRequiredService<IConfiguration>();
+//    var connectionString = configuration.GetConnectionString("DefaultConnection");
+//    return new MySqlConnection(connectionString);
+//});
 
 builder.Services.AddScoped<IBookRepository, BookRepository>();
 builder.Services.AddControllers();
