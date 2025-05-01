@@ -10,7 +10,7 @@
 <<<<<<< HEAD
     "DefaultConnection": "server=localhost;port=3306;database=LibraryManagementSystem;user=root;password="
 =======
-    "DefaultConnection": "server=localhost;port=3306;user=root;password=9094835;database=librarymanagementsystem;"
+    "DefaultConnection": "server=localhost;port=3306;user=root;password=;database=librarymanagementsystem;"
 >>>>>>> f7bc9cc (deployment)
   }
 }
